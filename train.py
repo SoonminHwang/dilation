@@ -175,11 +175,23 @@ def process_options(options):
 
 
 def train(options):
-    cmd = [options.caffe, 'train', '-solver', options.solver_path,
-           '-gpu', options.gpu]
-    if options.weights is not None:
-        cmd.extend(['-weights', options.weights])
-    subprocess.call(cmd)
+    import os
+    model_name = 'vgg'
+    job_dir = "jobs/{}/{}/".format(options.dataset, model_name)
+    job_file = "{}/train.sh".format(job_dir)
+
+    if not os.path.exists(job_dir):
+        os.makedirs(job_dir)
+
+    # Create job file.
+    with open(job_file, 'w') as f:
+      f.write('{} train \\\n'.format(options.caffe))      
+      f.write('--solver="{}" \\\n'.format(options.solver_path))        
+      f.write('--weights="{}" \\\n'.format(options.weights))
+      f.write('--gpu {} 2>&1 | tee {}/train_{}.log\n'.format(options.gpus, job_dir, model_name))
+    
+    os.chmod(job_file, stat.S_IRWXU)
+    subprocess.call(job_file, shell=True)
 
 
 def main():
@@ -189,6 +201,8 @@ def main():
     parser.add_argument('--caffe', default='caffe',
                         help='Path to the caffe binary compiled from '
                              'https://github.com/fyu/caffe-dilation.')
+    parser.add_argument('--dataset', type=str,
+                        help='DB name for creating job directory')
     parser.add_argument('--weights', default=None,
                         help='Path to the weights to initialize the model.')
     parser.add_argument('--mean', nargs='*', type=float,
