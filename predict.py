@@ -57,12 +57,12 @@ def predict(dataset_name, input_path, output_path):
     input_dims = net.blobs['data'].shape
     batch_size, num_channels, input_height, input_width = input_dims
     caffe_in = np.zeros(input_dims, dtype=np.float32)
-    image = cv2.imread(input_path, 1).astype(np.float32) - dataset.mean_pixel
+    image_ori = cv2.imread(input_path, 1).astype(np.float32) - dataset.mean_pixel
 
-    image_size = image.shape
+    image_size = image_ori.shape
     output_height = input_height - 2 * label_margin
     output_width = input_width - 2 * label_margin
-    image = cv2.copyMakeBorder(image, label_margin, label_margin,
+    image = cv2.copyMakeBorder(image_ori, label_margin, label_margin,
                                label_margin, label_margin,
                                cv2.BORDER_REFLECT_101)
 
@@ -99,6 +99,12 @@ def predict(dataset_name, input_path, output_path):
     color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
     print('Writing', output_path)
     cv2.imwrite(output_path, color_image)
+
+    # import os
+    # output_path = os.path.join( os.path.dirname(output_path), 'overlayed_' + os.path.basename(output_path) )
+    output_path = ''.join(*output_path.split('.')[:-1]) + '_overlayed.png'
+    overlay_image = image_ori * 0.5 + color_image * 0.5
+    cv2.imwrite(output_path, overlay_image)    
 
 
 def main():
