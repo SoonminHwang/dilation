@@ -34,8 +34,10 @@ class Dataset(object):
         self.zoom = info['zoom']
         self.name = dataset_name
         self.model_name = 'dilation{}_{}'.format(self.dilation, self.name)
+        # self.model_path = join(self.work_dir, 'models',
+        #                        self.model_name + '_deploy_joint.prototxt')
         self.model_path = join(self.work_dir, 'models',
-                               self.model_name + '_deploy.prototxt')
+                               'frontend_vgg_deploy.prototxt')
 
     @property
     def pretrained_path(self):
@@ -49,9 +51,20 @@ class Dataset(object):
         return p
 
 
-def predict(dataset_name, input_path, output_path):
+def predict(dataset_name, input_path, output_path, weights):
+    import os
     dataset = Dataset(dataset_name)
-    net = caffe.Net(dataset.model_path, dataset.pretrained_path, caffe.TEST)
+    if weights is None:
+        print( 'Load pre-trained weights from %s' % (dataset.pretrained_path) )
+        # net = caffe.Net(dataset.model_path, dataset.pretrained_path, caffe.TEST)
+        model_path = os.path.join('training', 'frontend_vgg_test_net.txt')
+        net = caffe.Net(model_path, dataset.pretrained_path, caffe.TEST)
+    else:
+        print( 'Load weights from %s' % (weights) )
+        net = caffe.Net(dataset.model_path, weights, caffe.TEST)
+        # model_path = os.path.join('models', 'frontend_vgg_deploy.prototxt')
+        # net = caffe.Net(model_path, dataset.pretrained_path, caffe.TEST)
+
     label_margin = 186
 
     input_dims = net.blobs['data'].shape
@@ -85,7 +98,10 @@ def predict(dataset_name, input_path, output_path):
                                       margin[2], margin[3],
                                       cv2.BORDER_REFLECT_101)
             caffe_in[0] = tile.transpose([2, 0, 1])
+
             out = net.forward_all(**{net.inputs[0]: caffe_in})
+            # net.blobs['data'].data[...] = caffe_in
+            # out = net.forward()
             prob = out['prob'][0]
             col_prediction.append(prob)
         # print('concat row')
@@ -99,6 +115,9 @@ def predict(dataset_name, input_path, output_path):
     color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
     print('Writing', output_path)
     cv2.imwrite(output_path, color_image)
+
+    import pdb
+    pdb.set_trace()
 
     # import os
     # output_path = os.path.join( os.path.dirname(output_path), 'overlayed_' + os.path.basename(output_path) )
@@ -114,6 +133,7 @@ def main():
     parser.add_argument('input_path', nargs='?', default='',
                         help='Required path to input image')
     parser.add_argument('-o', '--output_path', default=None)
+    parser.add_argument('-w', '--weights', default=None)
     parser.add_argument('--gpu', type=int, default=-1,
                         help='GPU ID to run CAFFE. '
                              'If -1 (default), CPU is used')
@@ -132,7 +152,7 @@ def main():
     if args.output_path is None:
         args.output_path = '{}_{}.png'.format(
                 splitext(args.input_path)[0], args.dataset)
-    predict(args.dataset, args.input_path, args.output_path)
+    predict(args.dataset, args.input_path, args.output_path, args.weights)
 
 
 if __name__ == '__main__':

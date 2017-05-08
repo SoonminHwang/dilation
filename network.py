@@ -123,7 +123,7 @@ def build_frontend_vgg(net, bottom, num_classes):
         param=[dict(lr_mult=1, decay_mult=1), dict(lr_mult=2, decay_mult=0)],
         convolution_param=dict(
             num_output=num_classes, kernel_size=1,
-            weight_filler=dict(type='gaussian', std=0.001),
+            weight_filler=dict(type='gaussian', std=0.01),
             bias_filler=dict(type='constant', value=0)))
     return net.final, 'final'
 

@@ -10,7 +10,7 @@ from os.path import dirname, exists, join
 import subprocess
 
 import network
-
+import stat
 
 __author__ = 'Fisher Yu'
 __copyright__ = 'Copyright (c) 2016, Fisher Yu'
@@ -29,9 +29,11 @@ def make_solver(options):
     solver.base_lr = options.lr
     solver.lr_policy = "step"
     solver.gamma = 0.1
-    solver.stepsize = 100000
+    # solver.stepsize = 100000
+    solver.stepsize = 40000
     solver.display = 5
-    solver.max_iter = 400000
+    # solver.max_iter = 400000
+    solver.max_iter = 100000
     solver.momentum = options.momentum
     solver.weight_decay = 0.0005
     solver.regularization_type = 'L2'
@@ -139,7 +141,10 @@ def process_options(options):
     if options.model == 'frontend':
         options.model += '_vgg'
 
-    work_dir = options.work_dir
+    work_dir = "jobs/{}/{}/".format(options.dataset, options.model)
+    options.work_dir = work_dir
+
+    # work_dir = options.work_dir
     model = options.model
     if not exists(work_dir):
         print('Creating working directory', work_dir)
@@ -176,19 +181,58 @@ def process_options(options):
 
 def train(options):
     import os
-    model_name = 'vgg'
-    job_dir = "jobs/{}/{}/".format(options.dataset, model_name)
+    # model_name = 'vgg'
+    # job_dir = "jobs/{}/{}/".format(options.dataset, model_name)
+    # job_dir = "jobs/{}/{}/".format(options.dataset, options.model)
+    # job_file = "{}/train.sh".format(job_dir)
+
+    job_dir = options.work_dir
     job_file = "{}/train.sh".format(job_dir)
 
     if not os.path.exists(job_dir):
         os.makedirs(job_dir)
 
+    max_iter = 0
+    snapshot_dir = "{}/snapshots".format(job_dir)
+    # Find most recent snapshot.
+    for file in os.listdir(snapshot_dir):
+      if file.endswith(".solverstate"):
+        basename = os.path.splitext(file)[0]
+        iter = int(basename.split("{}_iter_".format(options.model))[1])
+        if iter > max_iter:
+          max_iter = iter
+
+    train_src_param = '--weights="{}" \\\n'.format(options.weights)
+    if options.resume:
+        if max_iter > 0:
+            train_src_param = '--snapshot="{}/{}_iter_{}.solverstate" \\\n'.format(snapshot_dir, options.model, max_iter)
+   
     # Create job file.
     with open(job_file, 'w') as f:
-      f.write('{} train \\\n'.format(options.caffe))      
-      f.write('--solver="{}" \\\n'.format(options.solver_path))        
-      f.write('--weights="{}" \\\n'.format(options.weights))
-      f.write('--gpu {} 2>&1 | tee {}/train_{}.log\n'.format(options.gpus, job_dir, model_name))
+        f.write('{} train \\\n'.format(options.caffe))      
+        f.write('--solver="{}" \\\n'.format(options.solver_path))        
+        # f.write('--weights="{}" \\\n'.format(options.weights))
+        f.write(train_src_param)
+        if options.resume:
+            f.write('--gpu {} 2>&1 | tee -a {}/train_{}.log\n'.format(options.gpu, job_dir, options.model))
+        else:
+            f.write('--gpu {} 2>&1 | tee {}/train_{}.log\n'.format(options.gpu, job_dir, options.model))
+
+            import glob, shutil
+            parsed_log_file = glob.glob("{}*.train".format(job_dir))
+            if len(parsed_log_file) > 0 and os.path.exists(parsed_log_file[0]):
+                old_dir = "{}old_log".format(job_dir)
+                if not os.path.exists(old_dir):
+                    os.makedirs(old_dir)
+                shutil.copy(parsed_log_file[0], old_dir)
+                os.remove(parsed_log_file[0])
+            parsed_log_file = glob.glob("{}*.test".format(job_dir))
+            if len(parsed_log_file) > 0 and os.path.exists(parsed_log_file[0]):
+                old_dir = "{}old_log".format(job_dir)
+                if not os.path.exists(old_dir):
+                    os.makedirs(old_dir)
+                shutil.copy(parsed_log_file[0], old_dir)
+                os.remove(parsed_log_file[0])
     
     os.chmod(job_file, stat.S_IRWXU)
     subprocess.call(job_file, shell=True)
@@ -201,8 +245,10 @@ def main():
     parser.add_argument('--caffe', default='caffe',
                         help='Path to the caffe binary compiled from '
                              'https://github.com/fyu/caffe-dilation.')
-    parser.add_argument('--dataset', type=str,
+    parser.add_argument('--dataset', type=str, default='pascal_voc',
                         help='DB name for creating job directory')
+    parser.add_argument('--resume', action='store_true', default=False,
+                        help='If true, resume training from latest solverstate.')
     parser.add_argument('--weights', default=None,
                         help='Path to the weights to initialize the model.')
     parser.add_argument('--mean', nargs='*', type=float,
