@@ -76,7 +76,9 @@ def make_joint(options):
     deploy_net.data = network.make_input_data(options.input_size)
     last = network.build_frontend_vgg(
         deploy_net, deploy_net.data, options.classes)[0]
-    last, final_name = network.build_context(
+    # last, final_name = network.build_context(
+    #     deploy_net, last, options.classes, options.layers)
+    last, final_name = network.build_context_large(
         deploy_net, last, options.classes, options.layers)
     if options.up:
         deploy_net.upsample = network.make_upsample(last, options.classes)
@@ -315,7 +317,8 @@ def process_options(options):
     work_dir = options.work_dir
     model = options.model
     options.deploy_net = join(work_dir, model + '_deploy.txt')
-    options.result_dir = join(work_dir, 'results', options.sub_dir, model)
+    # options.result_dir = join(work_dir, 'results', options.sub_dir, model)
+    options.result_dir = join(work_dir, 'results', options.sub_dir)
     options.feat_dir = join(work_dir, 'bin', options.sub_dir, model)
 
     if options.input_size is None:

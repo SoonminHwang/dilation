@@ -30,10 +30,10 @@ def make_solver(options):
     solver.lr_policy = "step"
     solver.gamma = 0.1
     # solver.stepsize = 100000
-    solver.stepsize = 40000
+    solver.stepsize = 20000
     solver.display = 5
     # solver.max_iter = 400000
-    solver.max_iter = 100000
+    solver.max_iter = 50000
     solver.momentum = options.momentum
     solver.weight_decay = 0.0005
     solver.regularization_type = 'L2'
@@ -74,7 +74,9 @@ def make_context(options, is_training):
     net.data, net.label = network.make_bin_label_data(
         image_path, label_path, batch_size,
         options.label_shape, options.label_stride)
-    last = network.build_context(
+    # last = network.build_context(
+    #     net, net.data, options.classes, options.layers)[0]
+    last = network.build_context_large(
         net, net.data, options.classes, options.layers)[0]
     if options.up:
         net.upsample = network.make_upsample(last, options.classes)
@@ -95,8 +97,10 @@ def make_joint(options, is_training):
         is_training, options.crop_size, options.mean)
     last = network.build_frontend_vgg(
         net, net.data, options.classes)[0]
-    last = network.build_context(
+    last = network.build_context_large(
         net, last, options.classes, options.layers)[0]
+    # last = network.build_context(
+    #     net, last, options.classes, options.layers)[0]
     if options.up:
         net.upsample = network.make_upsample(last, options.classes)
         last = net.upsample
@@ -105,6 +109,27 @@ def make_joint(options, is_training):
         net.accuracy = network.make_accuracy(last, net.label)
     return net.to_proto()
 
+def make_joint_bn(options, is_training):
+    batch_size = options.train_batch if is_training else options.test_batch
+    image_path = options.train_image if is_training else options.test_image
+    label_path = options.train_label if is_training else options.test_label
+    net = caffe.NetSpec()
+    net.data, net.label = network.make_image_label_data_bn(
+        image_path, label_path, batch_size,
+        is_training, options.crop_size, options.mean)
+    last = network.build_frontend_vgg19_bn(
+        net, net.data, options.classes)[0]
+    last = network.build_context_large_bn(
+        net, last, options.classes, options.layers)[0]
+    # last = network.build_context(
+    #     net, last, options.classes, options.layers)[0]
+    if options.up:
+        net.upsample = network.make_upsample(last, options.classes)
+        last = net.upsample
+    net.loss = network.make_softmax_loss(last, net.label)
+    if not is_training:
+        net.accuracy = network.make_accuracy(last, net.label)
+    return net.to_proto()
 
 def make_net(options, is_training):
     return globals()['make_' + options.model](options, is_training)
@@ -141,7 +166,9 @@ def process_options(options):
     if options.model == 'frontend':
         options.model += '_vgg'
 
-    work_dir = "jobs/{}/{}/".format(options.dataset, options.model)
+    # work_dir = "jobs/{}/{}/".format(options.dataset, options.model)
+    post_fix = '_' + options.post_fix if not options.post_fix == '' else ''    
+    work_dir = os.path.join('jobs', options.dataset, options.model + post_fix)    
     options.work_dir = work_dir
 
     # work_dir = options.work_dir
@@ -241,12 +268,14 @@ def train(options):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('model', nargs='?',
-                        choices=['frontend', 'context', 'joint'])
+                        choices=['frontend', 'context', 'joint', 'joint_bn'])
     parser.add_argument('--caffe', default='caffe',
                         help='Path to the caffe binary compiled from '
                              'https://github.com/fyu/caffe-dilation.')
     parser.add_argument('--dataset', type=str, default='pascal_voc',
                         help='DB name for creating job directory')
+    parser.add_argument('--post_fix', type=str, default='default',
+                        help='Post fix for creating job directory')
     parser.add_argument('--resume', action='store_true', default=False,
                         help='If true, resume training from latest solverstate.')
     parser.add_argument('--weights', default=None,
@@ -255,11 +284,11 @@ def main():
                         default=[102.93, 111.36, 116.52],
                         help='Mean pixel value (BGR) for the dataset.\n'
                              'Default is the mean pixel of PASCAL dataset.')
-    parser.add_argument('--work_dir', default='training/',
-                        help='Working dir for training.\nAll the generated '
-                             'network and solver configurations will be '
-                             'written to this directory, in addition to '
-                             'training snapshots.')
+    # parser.add_argument('--work_dir', default='training/',
+    #                     help='Working dir for training.\nAll the generated '
+    #                          'network and solver configurations will be '
+    #                          'written to this directory, in addition to '
+    #                          'training snapshots.')
     parser.add_argument('--train_image', default='', required=True,
                         help='Path to the training image list')
     parser.add_argument('--train_label', default='', required=True,

@@ -34,10 +34,10 @@ class Dataset(object):
         self.zoom = info['zoom']
         self.name = dataset_name
         self.model_name = 'dilation{}_{}'.format(self.dilation, self.name)
-        # self.model_path = join(self.work_dir, 'models',
-        #                        self.model_name + '_deploy_joint.prototxt')
         self.model_path = join(self.work_dir, 'models',
-                               'frontend_vgg_deploy.prototxt')
+                               self.model_name + '_deploy_joint.prototxt')
+        # self.model_path = join(self.work_dir, 'models',
+        #                        'frontend_vgg_deploy.prototxt')
 
     @property
     def pretrained_path(self):
@@ -114,10 +114,7 @@ def predict(dataset_name, input_path, output_path, weights):
     color_image = dataset.palette[prediction.ravel()].reshape(image_size)
     color_image = cv2.cvtColor(color_image, cv2.COLOR_RGB2BGR)
     print('Writing', output_path)
-    cv2.imwrite(output_path, color_image)
-
-    import pdb
-    pdb.set_trace()
+    cv2.imwrite(output_path, color_image) 
 
     # import os
     # output_path = os.path.join( os.path.dirname(output_path), 'overlayed_' + os.path.basename(output_path) )
