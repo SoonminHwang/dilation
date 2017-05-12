@@ -33,7 +33,7 @@ def make_solver(options):
     solver.stepsize = 20000
     solver.display = 5
     # solver.max_iter = 400000
-    solver.max_iter = 50000
+    solver.max_iter = 100000
     solver.momentum = options.momentum
     solver.weight_decay = 0.0005
     solver.regularization_type = 'L2'
